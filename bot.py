@@ -38,7 +38,7 @@ from telegram.ext import (
     filters,
 )
 
-from config import BOT_TOKEN, SUPPORT_USERNAME, is_admin
+from config import BOT_TOKEN, SUPPORT_USERNAME, is_admin, VLESS_INBOUND_IDS
 from vless_api import VlessClient
 from marzban_api import MarzbanClient
 
@@ -337,8 +337,15 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def create_vless_key(update: Update, context: ContextTypes.DEFAULT_TYPE, client_name: str):
     """Create a VLESS key with the selected plan."""
     plan_info = context.user_data.get("pending_plan_info")
-    if not plan_info:
+    plan_key = context.user_data.get("pending_plan")
+    if not plan_info or not plan_key:
         await update.message.reply_text("❌ No plan selected. Please use /start.")
+        return
+
+    # Get the inbound ID for this plan
+    inbound_id = VLESS_INBOUND_IDS.get(plan_key)
+    if inbound_id is None:
+        await update.message.reply_text(f"❌ Invalid plan configuration for {plan_key}.")
         return
 
     # Clear pending action
@@ -362,11 +369,12 @@ async def create_vless_key(update: Update, context: ContextTypes.DEFAULT_TYPE, c
             total_gb=plan_info["data_gb"],
             expiry_days=plan_info["expiry_days"],
             limit_ip=plan_info["devices"],
+            inbound_id=inbound_id,
         )
 
         if result.get("success"):
             # Try to get the connection link
-            vless_link = await vless_client.get_client_link(result["uuid"])
+            vless_link = await vless_client.get_client_link(result["uuid"], inbound_id=inbound_id)
 
             data_text = "Unlimited" if plan_info["data_gb"] == 0 else f"{int(plan_info['data_gb'] * 1024)} MB"
 
@@ -508,6 +516,7 @@ async def quick_create_vless(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return
 
+    context.user_data["pending_plan"] = plan_key
     context.user_data["pending_plan_info"] = plan_info
     await create_vless_key(update, context, client_name)
 

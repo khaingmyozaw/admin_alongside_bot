@@ -17,7 +17,14 @@ ADMIN_IDS = [
 VLESS_PANEL_URL = os.getenv("VLESS_PANEL_URL", "http://68.183.184.161:1200/leeblyaml")
 VLESS_USERNAME = os.getenv("VLESS_USERNAME", "admin")
 VLESS_PASSWORD = os.getenv("VLESS_PASSWORD", "admin")
-VLESS_INBOUND_ID = int(os.getenv("VLESS_INBOUND_ID", "1"))
+
+# Per-plan inbound IDs
+VLESS_INBOUND_IDS = {
+    "vless_basic": int(os.getenv("VLESS_INBOUND_ID_BASIC", "1")),
+    "vless_silver": int(os.getenv("VLESS_INBOUND_ID_SILVER", "2")),
+    "vless_golden": int(os.getenv("VLESS_INBOUND_ID_GOLDEN", "3")),
+    "vless_trial": int(os.getenv("VLESS_INBOUND_ID_TRIAL", "4")),
+}
 
 # Marzban (Outline) Panel
 MARZBAN_PANEL_URL = os.getenv("MARZBAN_PANEL_URL", "http://165.245.183.72:1200")

@@ -11,7 +11,7 @@ import time
 import logging
 import httpx
 
-from config import VLESS_PANEL_URL, VLESS_USERNAME, VLESS_PASSWORD, VLESS_INBOUND_ID
+from config import VLESS_PANEL_URL, VLESS_USERNAME, VLESS_PASSWORD, VLESS_INBOUND_IDS
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ class VlessClient:
         self.base_url = VLESS_PANEL_URL
         self.username = VLESS_USERNAME
         self.password = VLESS_PASSWORD
-        self.inbound_id = VLESS_INBOUND_ID
+        self.inbound_ids = VLESS_INBOUND_IDS
         self.session_cookie = None
         self.http_client = httpx.AsyncClient(timeout=30.0, verify=False)
 
@@ -95,7 +95,7 @@ class VlessClient:
         total_gb: int = 0,
         expiry_days: int = 30,
         limit_ip: int = 1,
-        inbound_id: int = None,
+        inbound_id: int = 1,
     ) -> dict:
         """
         Create a new VLESS client on the specified inbound.
@@ -110,8 +110,6 @@ class VlessClient:
         Returns:
             dict with client info including the UUID
         """
-        if inbound_id is None:
-            inbound_id = self.inbound_id
 
         client_uuid = str(uuid.uuid4())
         expiry_time = int((time.time() + expiry_days * 86400) * 1000)  # milliseconds
@@ -156,14 +154,11 @@ class VlessClient:
             logger.error(f"Failed to create VLESS client: {error}")
             return {"success": False, "error": error}
 
-    async def get_client_link(self, client_uuid: str, inbound_id: int = None) -> str:
+    async def get_client_link(self, client_uuid: str, inbound_id: int = 1) -> str:
         """
         Get the VLESS connection link for a specific client.
         This fetches inbound details and constructs the VLESS URI.
         """
-        if inbound_id is None:
-            inbound_id = self.inbound_id
-
         result = await self._request("GET", f"/get/{inbound_id}")
         if not result.get("success"):
             return None
