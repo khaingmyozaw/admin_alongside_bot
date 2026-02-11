@@ -187,7 +187,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = (
             f"👋 Hello, **{user.first_name}**!\n\n"
             "If you need a VPN key or have any questions, "
-            "please contact our support team using the button below."
+            "please contact @mr_zembi."
         )
         await update.message.reply_text(
             text,
