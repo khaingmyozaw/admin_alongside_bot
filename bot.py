@@ -90,24 +90,28 @@ OUTLINE_PLANS = {
         "name": "🥉 Basic",
         "data_gb": 0,
         "expiry_days": 30,
+        "keys": 1,
         "description": "Unlimited data • 1 month",
     },
     "outline_silver": {
         "name": "🥈 Silver",
         "data_gb": 0,
         "expiry_days": 30,
-        "description": "Unlimited data • 1 month",
+        "keys": 2,
+        "description": "Unlimited data • 1 month • 2 Keys",
     },
     "outline_golden": {
         "name": "🥇 Golden",
         "data_gb": 0,
         "expiry_days": 30,
-        "description": "Unlimited data • 1 month",
+        "keys": 3,
+        "description": "Unlimited data • 1 month • 3 Keys",
     },
     "outline_trial": {
         "name": "🆓 Trial",
         "data_gb": 0.5,  # 500MB
         "expiry_days": 1,
+        "keys": 1,
         "description": "500 MB • 1 day",
     },
 }
@@ -430,55 +434,76 @@ async def create_outline_key(update: Update, context: ContextTypes.DEFAULT_TYPE,
     context.user_data.pop("pending_plan_info", None)
 
     client_name = sanitize_username(client_name)
-    unique_username = f"{client_name}_{int(time.time()) % 100000}"
-
+    key_count = plan_info.get("keys", 1)
+    
     progress_msg = await update.message.reply_text(
-        f"⏳ Creating Outline key for **{client_name}**...\n"
+        f"⏳ Creating {key_count} Outline key(s) for **{client_name}**...\n"
         f"Plan: {plan_info['name']} — {plan_info['description']}",
         parse_mode="Markdown",
     )
 
-    try:
-        result = await marzban_client.create_user(
-            username=unique_username,
-            data_limit_gb=plan_info["data_gb"],
-            expiry_days=plan_info["expiry_days"],
+    created_users = []
+    errors = []
+
+    base_username = f"{client_name}_{int(time.time()) % 100000}"
+
+    for i in range(1, key_count + 1):
+        # Append suffix only if more than 1 key, or always to distinguish? 
+        # Better to always distinct if multi-key plan.
+        current_username = f"{base_username}_{i}" if key_count > 1 else base_username
+        
+        try:
+            result = await marzban_client.create_user(
+                username=current_username,
+                data_limit_gb=plan_info["data_gb"],
+                expiry_days=plan_info["expiry_days"],
+            )
+
+            if result.get("success"):
+                created_users.append(result)
+            else:
+                errors.append(f"Key {i}: {result.get('error', 'Unknown error')}")
+        except Exception as e:
+            logger.error(f"Error creating Outline key {i}: {e}")
+            errors.append(f"Key {i}: {str(e)}")
+
+    # ─── Build Success Message ───
+    if created_users:
+        data_text = "Unlimited" if plan_info["data_gb"] == 0 else f"{int(plan_info['data_gb'] * 1024)} MB"
+        
+        text = (
+            f"✅ **Outline Keys Created Successfully!**\n"
+            f"📋 **Plan:** {plan_info['name']}\n"
+            f"📊 **Data:** {data_text}\n"
+            f"⏰ **Expiry:** {plan_info['expiry_days']} day(s)\n\n"
         )
 
-        if result.get("success"):
-            data_text = "Unlimited" if plan_info["data_gb"] == 0 else f"{int(plan_info['data_gb'] * 1024)} MB"
-
-            text = (
-                f"✅ **Outline Key Created Successfully!**\n\n"
-                f"👤 **Username:** `{unique_username}`\n"
-                f"📋 **Plan:** {plan_info['name']}\n"
-                f"📊 **Data:** {data_text}\n"
-                f"⏰ **Expiry:** {plan_info['expiry_days']} day(s)\n"
-            )
-
-            # Add subscription URL
-            sub_url = result.get("subscription_url")
+        for i, user in enumerate(created_users, 1):
+            text += f"👤 **User {i}:** `{user['username']}`\n"
+            
+            # Subscription URL
+            sub_url = user.get("subscription_url")
             if sub_url:
-                text += f"\n🔗 **Subscription URL:**\n`{sub_url}`\n"
+                text += f"🔗 **Sub:** `{sub_url}`\n"
+            
+            # Individual Keys (Links)
+            links = user.get("links", [])
+            for link in links:
+                # Truncate long keys for display if needed, but usually full key is better
+                text += f"🔑 `{link}`\n"
+            
+            text += "────────────────YOUR-VPN-BOT────────────────\n"
 
-            # Add connection links
-            links = result.get("links", [])
-            if links:
-                text += "\n🔑 **Connection Links:**\n"
-                for i, link in enumerate(links, 1):
-                    text += f"`{link}`\n"
+        if errors:
+            text += "\n⚠️ **Some keys failed:**\n" + "\n".join(errors)
 
-            await progress_msg.edit_text(text, parse_mode="Markdown")
-        else:
-            await progress_msg.edit_text(
-                f"❌ **Failed to create Outline key.**\n"
-                f"Error: {result.get('error', 'Unknown error')}",
-                parse_mode="Markdown",
-            )
-    except Exception as e:
-        logger.error(f"Error creating Outline key: {e}")
+        await progress_msg.edit_text(text, parse_mode="Markdown")
+
+    else:
+        # All failed
         await progress_msg.edit_text(
-            f"❌ **Error creating Outline key:**\n`{str(e)}`",
+            f"❌ **Failed to create Outline keys.**\n"
+            f"Errors:\n" + "\n".join(errors),
             parse_mode="Markdown",
         )
 
